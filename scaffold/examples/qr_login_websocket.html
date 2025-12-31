@@ -273,7 +273,9 @@
                     throw new Error('生成二维码失败');
                 }
                 
-                const data = await response.json();
+                const data_a = await response.json();
+                const data = data_a.data;
+                console.log('✅ 二维码已生成:', data);
                 sessionId = data.session_id;
                 
                 // 直接使用后端返回的base64图片
@@ -285,7 +287,7 @@
                 
                 btn.textContent = '重新生成';
                 btn.disabled = false;
-                
+
                 console.log('✅ 二维码已生成:', {
                     session_id: data.session_id,
                     expires_in: data.expires_in,
