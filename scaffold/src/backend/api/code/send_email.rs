@@ -7,6 +7,7 @@ use lettre::Message;
 use lettre::Transport;
 use crate::backend::api::code::handle_email_code::insert_email_code;
 use crate::backend::AppState;
+use crate::backend::errors::{ErrorCode, error_response, SuccessResponse};
 use crate::config::lazy_config::get_mailer;
 
 #[derive(Deserialize, Debug)]
@@ -53,13 +54,28 @@ pub async fn send_email_code(
 
     // 存储验证码到 PostgreSQL
     if let Err(e) = insert_email_code(client, &request.username, &request.email, &code, 600).await {
-        return HttpResponse::InternalServerError().body(format!("Failed to store code: {}", e));
+        let error_resp = error_response(
+            ErrorCode::DatabaseError,
+            format!("Failed to store code: {}", e),
+        );
+        return HttpResponse::InternalServerError().json(error_resp);
     }
 
     // 发送邮件
     if let Err(e) = send_email(&request.email, &code).await {
-        return HttpResponse::InternalServerError().body(format!("Failed to send email: {}", e));
+        let error_resp = error_response(
+            ErrorCode::EmailSendFailed,
+            format!("Failed to send email: {}", e),
+        );
+        return HttpResponse::InternalServerError().json(error_resp);
     }
 
-    HttpResponse::Ok().body("Email code sent successfully")
+    #[derive(serde::Serialize)]
+    struct EmailResponse {
+        message: String,
+    }
+
+    HttpResponse::Ok().json(SuccessResponse::new(EmailResponse {
+        message: "Email code sent successfully".to_string(),
+    }))
 }

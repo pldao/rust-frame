@@ -3,6 +3,7 @@ use actix_ws::Message;
 use tracing::info;
 use crate::backend::ws_manager::WsManager;
 use crate::backend::AppState;
+use crate::backend::errors::{ErrorCode, error_response};
 use sea_orm::{EntityTrait, DatabaseConnection};
 use crate::backend::models::prelude::QrLoginSessions;
 use sea_orm::ColumnTrait;
@@ -41,7 +42,11 @@ pub async fn ws_qr_status(
     
     if !session_exists {
         info!("❌ Session not found: {}", session_id);
-        return Ok(HttpResponse::NotFound().body("Session not found"));
+        let error_resp = error_response(
+            ErrorCode::QRCodeNotFound,
+            "Session not found"
+        );
+        return Ok(HttpResponse::NotFound().json(error_resp));
     }
     
     // 建立WebSocket连接

@@ -1,5 +1,6 @@
 use crate::backend::api::qr_login::handle_qr_session::insert_qr_session;
 use crate::backend::AppState;
+use crate::backend::errors::{ErrorCode, error_response, SuccessResponse};
 use actix_web::{web, HttpResponse};
 use base64::{engine::general_purpose, Engine as _};
 use image::Luma;
@@ -10,6 +11,7 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct GenerateQrRequest {
+    #[allow(dead_code)]
     pub client_info: Option<String>,
 }
 
@@ -51,8 +53,11 @@ pub async fn generate_qr_code(
 
     // 创建登录会话
     if let Err(e) = insert_qr_session(&state.pg_client, &session_id, ttl_seconds).await {
-        return HttpResponse::InternalServerError()
-            .body(format!("Failed to create QR session: {}", e));
+        let error_resp = error_response(
+            ErrorCode::DatabaseError,
+            format!("Failed to create QR session: {}", e),
+        );
+        return HttpResponse::InternalServerError().json(error_resp);
     }
 
     // 构造二维码数据
@@ -66,22 +71,30 @@ pub async fn generate_qr_code(
     let qr_image = match generate_qr_image(&qr_data) {
         Ok(img) => img,
         Err(e) => {
-            return HttpResponse::InternalServerError()
-                .body(format!("Failed to generate QR image: {}", e));
+            let error_resp = error_response(
+                ErrorCode::InternalError,
+                format!("Failed to generate QR image: {}", e),
+            );
+            return HttpResponse::InternalServerError().json(error_resp);
         }
     };
 
     // 返回响应（包含base64图片）
-    let response = format!(
-        r#"{{"session_id":"{}","qr_image":"{}","qr_data":"{}","expires_in":{}}}"#,
-        session_id,
+    #[derive(serde::Serialize)]
+    struct QrResponse {
+        session_id: String,
+        qr_image: String,
+        qr_data: String,
+        expires_in: i64,
+    }
+
+    let qr_response = QrResponse {
+        session_id: session_id.clone(),
         qr_image,
-        qr_data.replace("\"", "\\\""),
-        ttl_seconds
-    );
+        qr_data,
+        expires_in: ttl_seconds as i64,
+    };
 
     info!("Generated QR code image for session: {}", session_id);
-    HttpResponse::Ok()
-        .content_type("application/json")
-        .body(response)
+    HttpResponse::Ok().json(SuccessResponse::new(qr_response))
 }

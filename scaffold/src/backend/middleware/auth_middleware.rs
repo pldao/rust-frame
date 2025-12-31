@@ -1,19 +1,19 @@
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    error, http::header, Error, HttpResponse,
+    error, http::header, Error,
 };
 use futures_util::future::{ready, LocalBoxFuture, Ready};
 use serde_json::json;
 use std::rc::Rc;
-use tracing::{error, info};
-use actix_web::body::BoxBody;
+use tracing::error;
 
 use crate::backend::utils::jwt::verify_and_renew_jwt;
+use crate::backend::errors::{ErrorCode, error_response_with_path};
 
 // 忽略的路径: /register /ping /code /qr-login /ws (WebSocket)
 // const IGNORED_PATHS: [&str; 5] = ["/register", "/ping", "/code", "/qr-login", "/ws"];
 
-fn is_ignored_path(path: &str) -> bool {
+fn is_ignored_path(_path: &str) -> bool {
     // IGNORED_PATHS.iter().any(|&ignored| path.starts_with(ignored))
     false
 }
@@ -81,11 +81,12 @@ impl<S, B> Service<ServiceRequest> for AuthMiddleware<S>
         let token = extract_token_from_headers(&req);
         if token.is_empty() {
             return Box::pin(async move {
-                Err(error::ErrorUnauthorized(json!({
-                    "msg": "token不能为空",
-                    "code": 2,
-                    "path": path
-                })))
+                let error_resp = error_response_with_path(
+                    ErrorCode::TokenMissing,
+                    ErrorCode::TokenMissing.default_message(),
+                    path,
+                );
+                Err(error::ErrorUnauthorized(json!(error_resp)))
             });
         }
 
@@ -102,11 +103,12 @@ impl<S, B> Service<ServiceRequest> for AuthMiddleware<S>
                 }
                 Err(err) => {
                     error!("JWT verification failed: {:?}", err);
-                    Err(error::ErrorUnauthorized(json!({
-                        "msg": "无效的token",
-                        "code": 2,
-                        "path": path
-                    })))
+                    let error_resp = error_response_with_path(
+                        ErrorCode::TokenInvalid,
+                        ErrorCode::TokenInvalid.default_message(),
+                        path,
+                    );
+                    Err(error::ErrorUnauthorized(json!(error_resp)))
                 }
             }
         })

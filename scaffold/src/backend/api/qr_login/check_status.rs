@@ -3,6 +3,7 @@ use chrono::Utc;
 use tracing::info;
 use crate::backend::AppState;
 use crate::backend::api::qr_login::handle_qr_session::find_session_by_id;
+use crate::backend::errors::{ErrorCode, error_response};
 
 pub async fn check_login_status(
     state: web::Data<AppState>,
@@ -14,14 +15,18 @@ pub async fn check_login_status(
     let session = match find_session_by_id(&state.pg_client, &session_id).await {
         Ok(Some(s)) => s,
         Ok(None) => {
-            return HttpResponse::NotFound().body(
-                r#"{"status":"not_found","web_token":null,"message":"Session not found"}"#
+            let error_resp = error_response(
+                ErrorCode::QRCodeNotFound,
+                "Session not found",
             );
+            return HttpResponse::NotFound().json(error_resp);
         }
         Err(e) => {
-            return HttpResponse::InternalServerError().body(
-                format!("Database error: {}", e)
+            let error_resp = error_response(
+                ErrorCode::DatabaseError,
+                format!("Database error: {}", e),
             );
+            return HttpResponse::InternalServerError().json(error_resp);
         }
     };
     
