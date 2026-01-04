@@ -1,3 +1,4 @@
 pub mod jwt;
 pub mod hash;
 pub mod extractors;
+pub mod validators;

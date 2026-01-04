@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use tracing::info;
+use serde_json::json;
 use crate::backend::AppState;
 use crate::backend::api::qr_login::handle_qr_session::find_session_by_id;
 use crate::backend::errors::{ErrorCode, error_response};
@@ -33,42 +34,50 @@ pub async fn check_login_status(
     // 检查是否过期
     let now = Utc::now().naive_utc();
     if session.expires_at < now && session.status == "pending" {
-        return HttpResponse::Ok()
-            .content_type("application/json")
-            .body(r#"{"status":"expired","web_token":null,"message":"QR code expired"}"#);
+        return HttpResponse::Ok().json(json!({
+            "status": "expired",
+            "web_token": null,
+            "message": "QR code expired"
+        }));
     }
-    
-    // 根据状态返回
+
+    // 根据状态返回 - 使用 serde_json 防止 XSS 和注入攻击
     match session.status.as_str() {
         "pending" => {
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .body(r#"{"status":"pending","web_token":null,"message":"Waiting for scan"}"#)
+            HttpResponse::Ok().json(json!({
+                "status": "pending",
+                "web_token": null,
+                "message": "Waiting for scan"
+            }))
         }
         "scanned" => {
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .body(r#"{"status":"scanned","web_token":null,"message":"Scanned, waiting for confirmation"}"#)
+            HttpResponse::Ok().json(json!({
+                "status": "scanned",
+                "web_token": null,
+                "message": "Scanned, waiting for confirmation"
+            }))
         }
         "confirmed" => {
             let web_token = session.web_token.unwrap_or_default();
-            let response = format!(
-                r#"{{"status":"confirmed","web_token":"{}","message":"Login successful"}}"#,
-                web_token
-            );
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .body(response)
+            HttpResponse::Ok().json(json!({
+                "status": "confirmed",
+                "web_token": web_token,
+                "message": "Login successful"
+            }))
         }
         "rejected" => {
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .body(r#"{"status":"rejected","web_token":null,"message":"Login rejected by user"}"#)
+            HttpResponse::Ok().json(json!({
+                "status": "rejected",
+                "web_token": null,
+                "message": "Login rejected by user"
+            }))
         }
         _ => {
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .body(r#"{"status":"expired","web_token":null,"message":"QR code expired"}"#)
+            HttpResponse::Ok().json(json!({
+                "status": "expired",
+                "web_token": null,
+                "message": "QR code expired"
+            }))
         }
     }
 }

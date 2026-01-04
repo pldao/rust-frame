@@ -49,3 +49,5 @@ lettre.workspace = true
 uuid = { version = "1.10", features = ["v4", "serde"] }
 qrcode = "0.14"
 image = "0.25"
+regex = "1.11"
+lazy_static = "1.5"

@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse, Error};
 use actix_ws::Message;
 use tracing::info;
+use serde_json::json;
 use crate::backend::ws_manager::WsManager;
 use crate::backend::AppState;
 use crate::backend::errors::{ErrorCode, error_response};
@@ -57,9 +58,13 @@ pub async fn ws_qr_status(
     // 将连接添加到管理器
     ws_manager.add_connection(session_id.clone(), session.clone()).await;
     
-    // 发送连接成功消息
+    // 发送连接成功消息 - 使用 serde_json 防止 XSS
     let mut session_clone = session.clone();
-    let _ = session_clone.text(r#"{"status":"connected","message":"Waiting for confirmation"}"#).await;
+    let connect_message = json!({
+        "status": "connected",
+        "message": "Waiting for confirmation"
+    });
+    let _ = session_clone.text(connect_message.to_string()).await;
     
     // 启动心跳和消息处理任务
     let ws_manager_clone = ws_manager.clone();
