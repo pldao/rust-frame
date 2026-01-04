@@ -8,27 +8,13 @@ use std::rc::Rc;
 use tracing::error;
 
 use crate::backend::utils::jwt::verify_and_renew_jwt;
+use crate::backend::utils::extractors::extract_token_from_request;
 use crate::backend::errors::{ErrorCode, error_response_with_path};
 
-// 忽略的路径: /register /ping /code /qr-login /ws (WebSocket)
-// const IGNORED_PATHS: [&str; 5] = ["/register", "/ping", "/code", "/qr-login", "/ws"];
-
 fn is_ignored_path(_path: &str) -> bool {
-    // IGNORED_PATHS.iter().any(|&ignored| path.starts_with(ignored))
+    // TODO: 实现路径排除逻辑
+    // 当前所有路径都需要认证，后续可以添加排除列表
     false
-}
-
-fn extract_token_from_headers(req: &ServiceRequest) -> String {
-    req.headers()
-        .get("Authorization")
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header_str| {
-            header_str
-                .strip_prefix("Bearer ")
-                .or_else(|| header_str.strip_prefix("bearer "))
-        })
-        .unwrap_or("")
-        .to_string()
 }
 
 pub struct Auth;
@@ -78,27 +64,39 @@ impl<S, B> Service<ServiceRequest> for AuthMiddleware<S>
         }
 
         // 提取 token 并进行验证
-        let token = extract_token_from_headers(&req);
-        if token.is_empty() {
-            return Box::pin(async move {
-                let error_resp = error_response_with_path(
-                    ErrorCode::TokenMissing,
-                    ErrorCode::TokenMissing.default_message(),
-                    path,
-                );
-                Err(error::ErrorUnauthorized(json!(error_resp)))
-            });
-        }
+        let token_result = extract_token_from_request(&req);
+
+        let token = match token_result {
+            Ok(t) => t,
+            Err(err) => {
+                return Box::pin(async move {
+                    let error_resp = error_response_with_path(
+                        ErrorCode::TokenMissing,
+                        err.message(),
+                        path,
+                    );
+                    Err(error::ErrorUnauthorized(json!(error_resp)))
+                });
+            }
+        };
 
         Box::pin(async move {
             match verify_and_renew_jwt(&token) {
                 Ok(new_token) => {
                     // 如果 token 被续签了，添加到响应头
                     let mut response = svc.call(req).await?;
-                    response.headers_mut().insert(
-                        header::AUTHORIZATION,
-                        header::HeaderValue::from_str(&format!("Bearer {}", new_token)).unwrap(),
-                    );
+
+                    // 安全地创建 header value
+                    let header_value = match header::HeaderValue::from_str(&format!("Bearer {}", new_token)) {
+                        Ok(val) => val,
+                        Err(e) => {
+                            error!("Failed to create authorization header: {:?}", e);
+                            // 如果无法创建 header，记录错误但不中断请求
+                            return Ok(response);
+                        }
+                    };
+
+                    response.headers_mut().insert(header::AUTHORIZATION, header_value);
                     Ok(response)
                 }
                 Err(err) => {

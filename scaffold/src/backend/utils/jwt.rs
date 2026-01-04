@@ -1,8 +1,9 @@
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation, TokenData};
 use serde::{Deserialize, Serialize};
 use std::env;
-use chrono::{Utc, Duration};
+use chrono::Utc;
 use crate::backend::models::sea_orm_active_enums::UserRoleType;
+use crate::backend::config::jwt;
 
 /// 定义 JWT 的负载
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -49,11 +50,11 @@ pub fn verify_and_renew_jwt(token: &str) -> Result<String, jsonwebtoken::errors:
     // 获取当前时间
     let now = Utc::now().timestamp() as usize;
 
-    // 检查过期时间，如果还有不到1小时，则续签
-    if token_data.claims.exp - now <= 3600 { // 1小时内过期
+    // 检查过期时间，如果剩余时间少于阈值，则续签
+    if token_data.claims.exp - now <= jwt::RENEWAL_THRESHOLD_SECONDS {
         let renewed_claims = Claims {
-            exp: now + 3600 * 24, // 设置新的过期时间为一天后
-            ..token_data.claims.clone() // 保持原有的用户信息
+            exp: now + jwt::DEFAULT_EXPIRATION_SECONDS,
+            ..token_data.claims.clone()
         };
 
         // 生成新的 JWT

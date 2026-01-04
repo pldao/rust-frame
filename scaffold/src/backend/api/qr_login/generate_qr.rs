@@ -1,5 +1,6 @@
 use crate::backend::api::qr_login::handle_qr_session::insert_qr_session;
 use crate::backend::AppState;
+use crate::backend::config::qr_code;
 use crate::backend::errors::{ErrorCode, error_response, SuccessResponse};
 use actix_web::{web, HttpResponse};
 use base64::{engine::general_purpose, Engine as _};
@@ -21,11 +22,11 @@ fn generate_qr_image(data: &str) -> Result<String, String> {
     let code =
         QrCode::new(data.as_bytes()).map_err(|e| format!("Failed to generate QR code: {}", e))?;
 
-    // 渲染为图像
+    // 渲染为图像 - 使用配置的尺寸
     let image = code
         .render::<Luma<u8>>()
-        .min_dimensions(300, 300)
-        .max_dimensions(300, 300)
+        .min_dimensions(qr_code::MIN_IMAGE_SIZE, qr_code::MIN_IMAGE_SIZE)
+        .max_dimensions(qr_code::MAX_IMAGE_SIZE, qr_code::MAX_IMAGE_SIZE)
         .build();
 
     // 转换为PNG字节
@@ -49,7 +50,7 @@ pub async fn generate_qr_code(
     info!("Received generate QR code request: {:?}", request);
 
     let session_id = Uuid::new_v4().to_string();
-    let ttl_seconds = 300; // 5 minutes
+    let ttl_seconds = qr_code::TTL_SECONDS as i64; // 转换为 i64 类型
 
     // 创建登录会话
     if let Err(e) = insert_qr_session(&state.pg_client, &session_id, ttl_seconds).await {

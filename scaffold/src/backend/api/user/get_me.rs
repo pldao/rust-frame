@@ -3,36 +3,31 @@ use serde_json::json;
 use tracing::info;
 
 use crate::backend::utils::jwt::{verify_jwt, Claims};
+use crate::backend::utils::extractors::extract_token_from_request;
 use crate::backend::errors::{ErrorCode, error_response};
 
-/// 从请求头中提取并验证 JWT token
+/// 从请求中提取并验证用户信息
+///
+/// 这是一个辅助函数，用于从请求中提取 JWT token 并验证
+/// 返回包含用户信息的 Claims
 fn extract_user_from_request(req: &HttpRequest) -> Result<Claims, HttpResponse> {
-    // 从 Authorization header 中提取 token
-    let token = req
-        .headers()
-        .get("Authorization")
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header_str| {
-            header_str
-                .strip_prefix("Bearer ")
-                .or_else(|| header_str.strip_prefix("bearer "))
-        })
-        .unwrap_or("");
-
-    if token.is_empty() {
-        return Err(HttpResponse::Unauthorized().json(error_response(
+    // 使用共享的 token 提取函数
+    let token = extract_token_from_request(req).map_err(|err| {
+        HttpResponse::Unauthorized().json(error_response(
             ErrorCode::TokenMissing,
-            "Authorization header is missing or invalid",
-        )));
-    }
+            err.message(),
+        ))
+    })?;
 
     // 验证 token 并解析用户信息
-    verify_jwt(token)
+    verify_jwt(&token)
         .map(|data| data.claims)
-        .map_err(|_| HttpResponse::Unauthorized().json(error_response(
-            ErrorCode::TokenInvalid,
-            "Invalid or expired token",
-        )))
+        .map_err(|_| {
+            HttpResponse::Unauthorized().json(error_response(
+                ErrorCode::TokenInvalid,
+                "Invalid or expired token",
+            ))
+        })
 }
 
 /// 获取当前用户信息

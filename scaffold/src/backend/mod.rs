@@ -4,6 +4,7 @@ pub mod models;
 pub mod app_router;
 pub mod ws_manager;
 pub mod errors;
+pub mod config;
 mod middleware;
 mod utils;
 mod api;
