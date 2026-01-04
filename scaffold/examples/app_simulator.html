@@ -366,32 +366,64 @@
     <script>
         const API_BASE = 'http://localhost:8080/v1';
 
-        // 生成测试Token
-        function generateToken() {
+        // 生成测试Token（从后端获取真实token）
+        async function generateToken() {
             const tokenEl = document.getElementById('appToken');
             const boxEl = document.getElementById('generatedTokenBox');
             const tokenCodeEl = document.getElementById('generatedToken');
 
-            // 生成简单的JWT token（仅用于测试）
-            const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-            const payload = btoa(JSON.stringify({
-                user_id: 'test_user_001',
-                username: 'testuser',
-                role: 'user',
-                exp: Math.floor(Date.now() / 1000) + 86400,
-                iat: Math.floor(Date.now() / 1000)
-            }));
+            console.log('🎲 正在从后端生成测试Token...');
 
-            // 注意：这个token的签名是伪造的，实际需要后端配置
-            const signature = 'test_signature_' + Math.random().toString(36).substring(7);
-            const token = `${header}.${payload}.${signature}`;
+            try {
+                // 调用后端接口生成token
+                const response = await fetch(`${API_BASE}/test/generate-token/default`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
 
-            tokenEl.value = token;
-            tokenCodeEl.textContent = token;
-            boxEl.classList.add('show');
+                if (!response.ok) {
+                    throw new Error(`生成失败: ${response.status}`);
+                }
 
-            console.log('✅ 测试Token已生成');
-            console.log('⚠️  注意: 这是测试token，实际使用时需要从后端获取真实token');
+                const result = await response.json();
+
+                if (result.code === 0 && result.data) {
+                    const token = result.data.token;
+
+                    tokenEl.value = token;
+                    tokenCodeEl.textContent = token;
+                    boxEl.classList.add('show');
+
+                    console.log('✅ 测试Token已生成（来自后端）');
+                    console.log('📝 Token:', token.substring(0, 50) + '...');
+                    console.log('👤 用户:', result.data.username);
+                    console.log('🔑 角色:', result.data.role);
+                    console.log('⏰ 过期时间:', result.data.expires_at);
+                } else {
+                    throw new Error(result.msg || '生成失败');
+                }
+            } catch (error) {
+                console.error('❌ 生成Token失败:', error);
+                alert('❌ 生成Token失败\n\n' + error.message + '\n\n请确保后端服务正在运行');
+
+                // 失败时使用旧的假token作为后备
+                const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                const payload = btoa(JSON.stringify({
+                    user_id: 'test_user_001',
+                    username: 'testuser',
+                    role: 'user',
+                    exp: Math.floor(Date.now() / 1000) + 86400,
+                    iat: Math.floor(Date.now() / 1000)
+                }));
+                const signature = 'test_signature_' + Math.random().toString(36).substring(7);
+                const token = `${header}.${payload}.${signature}`;
+
+                tokenEl.value = token;
+                tokenCodeEl.textContent = token;
+                boxEl.classList.add('show');
+
+                console.warn('⚠️  使用假token（仅用于展示，无法实际验证）');
+            }
         }
 
         // 粘贴Token

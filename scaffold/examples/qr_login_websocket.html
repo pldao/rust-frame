@@ -191,6 +191,55 @@
             font-weight: bold;
             width: 120px;
         }
+
+        .user-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f9ff;
+            border-radius: 10px;
+            font-size: 13px;
+            text-align: left;
+            display: none;
+        }
+
+        .user-info.show {
+            display: block;
+        }
+
+        .user-info h3 {
+            color: #004085;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .user-info p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .user-info .label {
+            font-weight: bold;
+            color: #666;
+        }
+
+        .test-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .test-section h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .test-section button {
+            margin-top: 0;
+            padding: 8px 20px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -236,6 +285,19 @@
             • 单次连接，省资源<br>
             • 用户体验极佳<br>
             • 服务器负载更低
+        </div>
+
+        <div class="test-section" id="testSection" style="display: none;">
+            <h3>🧪 JWT Token 测试</h3>
+            <button onclick="testMeEndpoint()" id="testBtn">测试 /me 接口</button>
+
+            <div class="user-info" id="userInfo">
+                <h3>👤 当前用户信息</h3>
+                <p><span class="label">User ID:</span> <span id="userId">-</span></p>
+                <p><span class="label">Username:</span> <span id="username">-</span></p>
+                <p><span class="label">Role:</span> <span id="role">-</span></p>
+                <p><span class="label">Token Expires:</span> <span id="exp">-</span></p>
+            </div>
         </div>
     </div>
 
@@ -338,19 +400,22 @@
                         // 登录成功
                         statusEl.className = 'status success';
                         statusEl.innerHTML = `✅ 登录成功！<br><small>响应时间: ${responseTime}ms（几乎实时！）</small>`;
-                        
+
                         // 保存token
                         if (data.web_token) {
                             localStorage.setItem('token', data.web_token);
                             console.log('✅ Token已保存');
+
+                            // 显示测试区域
+                            document.getElementById('testSection').style.display = 'block';
                         }
-                        
+
                         // 关闭连接
                         ws.close();
-                        
+
                         // 提示用户
                         setTimeout(() => {
-                            alert(`✅ 登录成功！\n\n响应时间: ${responseTime}ms\n使用WebSocket实现即时推送！`);
+                            alert(`✅ 登录成功！\n\n响应时间: ${responseTime}ms\n使用WebSocket实现即时推送！\n\n现在可以测试 /me 接口了！`);
                         }, 500);
                         
                     } else if (data.status === 'rejected') {
@@ -399,6 +464,84 @@
         window.addEventListener('beforeunload', () => {
             if (ws) {
                 ws.close();
+            }
+        });
+
+        // 测试 /me 接口
+        async function testMeEndpoint() {
+            const token = localStorage.getItem('token');
+            const testBtn = document.getElementById('testBtn');
+            const userInfo = document.getElementById('userInfo');
+
+            if (!token) {
+                alert('❌ 未找到Token\n\n请先完成扫码登录以获取JWT Token');
+                return;
+            }
+
+            console.log('🧪 开始测试 /me 接口');
+            console.log('📝 Token:', token.substring(0, 20) + '...');
+
+            testBtn.disabled = true;
+            testBtn.textContent = '测试中...';
+
+            try {
+                const response = await fetch('http://localhost:8080/v2/user/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('📡 响应状态:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ 接口响应:', result);
+
+                if (result.code === 0 && result.data) {
+                    // 显示用户信息
+                    document.getElementById('userId').textContent = result.data.user_id;
+                    document.getElementById('username').textContent = result.data.username;
+                    document.getElementById('role').textContent = result.data.role || 'N/A';
+
+                    // 转换过期时间为可读格式
+                    const expDate = new Date(result.data.exp * 1000);
+                    document.getElementById('exp').textContent = expDate.toLocaleString('zh-CN');
+
+                    userInfo.classList.add('show');
+
+                    alert(`✅ 测试成功！\n\n用户信息已显示\n\nUser ID: ${result.data.user_id}\nUsername: ${result.data.username}\nRole: ${result.data.role || 'N/A'}`);
+                } else {
+                    throw new Error(result.msg || '未知错误');
+                }
+
+            } catch (error) {
+                console.error('❌ 测试失败:', error);
+                alert(`❌ 测试失败\n\n错误: ${error.message}\n\n请检查：\n1. Token是否有效\n2. 后端服务是否运行\n3. 浏览器控制台查看详细错误`);
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '测试 /me 接口';
+            }
+        }
+
+        // 页面加载时检查是否有token
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('testSection').style.display = 'block';
+                console.log('✅ 检测到Token，显示测试按钮');
+            }
+        });
+
+        // 监听token保存事件
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'token' && e.newValue) {
+                document.getElementById('testSection').style.display = 'block';
+                console.log('✅ Token已更新，显示测试按钮');
             }
         });
     </script>

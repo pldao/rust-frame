@@ -21,14 +21,4 @@ CREATE INDEX idx_qr_login_session_id ON qr_login_sessions(session_id);
 CREATE INDEX idx_qr_login_status ON qr_login_sessions(status);
 CREATE INDEX idx_qr_login_expires_at ON qr_login_sessions(expires_at);
 
----- 添加注释
---COMMENT ON TABLE qr_login_sessions IS '扫码登录会话表';
---COMMENT ON COLUMN qr_login_sessions.id IS '主键ID';
---COMMENT ON COLUMN qr_login_sessions.session_id IS '登录会话唯一ID（UUID）';
---COMMENT ON COLUMN qr_login_sessions.user_id IS 'App端用户ID（确认后填充）';
---COMMENT ON COLUMN qr_login_sessions.status IS '登录状态: pending, scanned, confirmed, rejected, expired';
---COMMENT ON COLUMN qr_login_sessions.web_token IS '生成的Web端JWT（确认后生成）';
---COMMENT ON COLUMN qr_login_sessions.app_token IS 'App端提交的身份信息';
---COMMENT ON COLUMN qr_login_sessions.created_at IS '创建时间';
---COMMENT ON COLUMN qr_login_sessions.expires_at IS '过期时间';
---COMMENT ON COLUMN qr_login_sessions.updated_at IS '更新时间';
+

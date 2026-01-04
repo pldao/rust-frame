@@ -11,6 +11,7 @@ use crate::backend::api::auth::auth_scope;
 // use crate::backend::api::logs::logs_scope;
 use crate::backend::api::code::code_scope;
 use crate::backend::api::qr_login::{qr_login_scope, ws_qr_route};
+use crate::backend::api::user::{user_scope, test_scope};
 use crate::backend::ws_manager::WsManager;
 
 pub async fn run_backend_server(
@@ -44,6 +45,7 @@ pub async fn run_backend_server(
                     .service(auth_scope())     // 用户注册/登录
                     .service(code_scope())     // 验证码
                     .service(qr_login_scope()) // 扫码登录（生成二维码、查询状态）
+                    .service(test_scope())     // 测试接口（生成 token）
                     // WebSocket路由
                     .route("/ws/qr/{session_id}", ws_qr_route())
             )
@@ -52,8 +54,7 @@ pub async fn run_backend_server(
                 web::scope("/v2")
                     .wrap(Timed)
                     .wrap(Auth)
-                    // 这里放需要认证的API
-                    // .service(user_scope())     // 用户信息管理
+                    .service(user_scope())     // 用户信息管理
                     // .service(admin_scope())    // 管理员接口
             )
     })
@@ -67,10 +68,11 @@ pub async fn run_backend_server(
     info!("  │  ├─ �📡 QR Login: http://localhost:{}/v1/qr-login/generate", backend_port);
     info!("  │  ├─ 🔌 WebSocket: ws://localhost:{}/v1/ws/qr/{{session_id}}", backend_port);
     info!("  │  ├─ 🔐 Auth: http://localhost:{}/v1/auth/*", backend_port);
-    info!("  │  └─ 📧 Code: http://localhost:{}/v1/code/*", backend_port);
+    info!("  │  ├─ 📧 Code: http://localhost:{}/v1/code/*", backend_port);
+    info!("  │  └─ 🧪 Test: http://localhost:{}/v1/test/generate-token", backend_port);
     info!("  │");
     info!("  └─ v2 (需要认证):");
-    info!("     └─ (暂无，可在此添加需要JWT认证的接口)", );
+    info!("     └─ 👤 User: http://localhost:{}/v2/user/me", backend_port);
     info!("");
     
     server.run().await
